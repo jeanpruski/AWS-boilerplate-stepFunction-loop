@@ -1,0 +1,52 @@
+service: my-step-function-loop
+
+plugins:
+  - serverless-step-functions
+
+provider:
+  name: aws
+  runtime: nodejs16.x
+  region: eu-west-3
+
+functions:
+  init_lambda:
+    handler: lambdas/handler_lambda.init
+    timeout: 30
+  process_lambda:
+    handler: lambdas/handler_lambda.process
+    timeout: 30
+  iterator_lambda:
+    handler: lambdas/iterator_lambda.iterate
+    timeout: 30
+
+stepFunctions:
+  stateMachines:
+    myWorkshopLoopStateMachine:
+      definition:
+        StartAt: initLambda
+        States:
+          initLambda:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [init_lambda, Arn]
+            Next: loop
+          loop:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [iterator_lambda, Arn]
+            Next: loopAgain?
+          loopAgain?:
+            Type: Choice
+            Choices:
+              - Variable: $.iterator.continue
+                BooleanEquals: true
+                Next: processLambda
+            Default: endOfJob
+          processLambda:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [process_lambda, Arn]
+            Next: loop
+          endOfJob:
+            Type: Pass
+            End: true
